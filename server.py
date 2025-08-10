@@ -6,12 +6,21 @@ porta = 8080
 
 clientes = []
 
-def exibir_lista_comandos():
+def exibir_lista_comandos(conn):
     return "\nLista de opções de comandos:\n/comandos - Lista comandos\n/close - Fecha conexão"
 
 
-def encerrar_conexao():
-    return "Conexão encerrada pelo servidor."
+def encerrar_conexao(conn):
+    try:
+        print('Encerrando conexão...')
+        conn.sendall("ENCERRAR_CONEXÃO".encode())
+        if conn in clientes:
+            clientes.remove(conn)
+        conn.shutdown(socket.SHUT_RDWR) # desativa envio e recebimento
+        conn.close()
+        return 'Conexão encerrada!'
+    except Exception as e:
+        return print(f'Erro: {e}')
 
 palavras_chaves_opcoes = {
     "/comandos": exibir_lista_comandos,
@@ -47,10 +56,19 @@ def menssagem_verificacao(msg, conn):
 
     if msg.startswith('/'):
         if msg in palavras_chaves_opcoes:
-            func = palavras_chaves_opcoes[msg]
-            print(func)
-            resp_func = func() # executa função. 
-            conn.sendall(resp_func.encode())
+            for chave, valor in palavras_chaves_opcoes.items():
+                if chave == msg:
+                    msg = chave
+                    msg_func = valor
+                    resp_msg_func = msg_func(conn) # executa função. 
+                    if resp_msg_func:
+                        try:
+                            conn.sendall(resp_msg_func.encode())
+                        except:
+                            pass
+                    if msg == '/close':
+                        return False
+                    return True
         else:
             print('Comando não foi uma função do sistema!')
         return True
@@ -77,9 +95,6 @@ def tratamento_cliente(conn, addr):
             
         except Exception as e:
             print(f'Erro no cliente {conn}: {e}')            
-            conn.close()
-            clientes.remove(conn)
-            print(f"User {addr} desconectado.")
             break
 
 def iniciar_servidor():
